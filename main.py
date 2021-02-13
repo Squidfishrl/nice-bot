@@ -165,7 +165,11 @@ def compareAutoNiceObjects(obj1, obj2):
 
 
 def getUTC():
-    return datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    now = str(now.time())[0:5]
+    if now[0] == '0':
+        now = now[1:5]
+    return now
 
 
 def convertToUTC(autoNiceSetting):
@@ -176,17 +180,6 @@ def convertToUTC(autoNiceSetting):
     else:
         timeZoneDeviation = autoNiceSetting.timeZone[4] + autoNiceSetting.timeZone[5]
 
-    # get niceTime Hour
-
-    # niceTimeHour = ''
-    # for i in autoNiceSetting.niceTime:
-    #     if i == ':':
-    #         break
-    #     else:
-    #         niceTimeHour += i
-    # niceTimeHour = int(niceTimeHour)
-
-    # sync niceTime to UTC
     format = '%H:%M'
     if autoNiceSetting.timeZone[3] == '+':
         # niceTime - timeZoneDeviation
@@ -207,31 +200,71 @@ def convertToUTC(autoNiceSetting):
     # format time to %H:%M
     autoNiceSetting.niceTime = str(autoNiceSetting.niceTime[:-3])
     autoNiceSetting.timeZone = 'UTC'
-    print(str(autoNiceSetting.niceTime))
-    print(type(autoNiceSetting.niceTime))
     return autoNiceSetting
 
 
-# unpickle autonice settings
+def timeRemaining(setting):
+    now = getUTC()
+    niceTime = setting.niceTime
 
-niceSettings_fileName = "nice_settings.pickle"
-niceSettings_arr = []
+    # convert to minutes from midnight
+    if len(now) == 5:
+        now = int(now[0])*600 + int(now[1])*60 + (int(now[4]) + int(now[3])*10)
 
-try:
-    niceSettings_File = open(niceSettings_fileName, 'rb')
-    try:
-        niceSettings_arr = pickle.load(niceSettings_File)
-    except EOFError:
-        niceSettings_arr = []
-    niceSettings_File.close()
-except FileNotFoundError:
+    else:
+        now = int(now[0])*60 + (int(now[3]) + int(now[2])*10)
+
+    if len(niceTime) == 5:
+        niceTime = int(niceTime[0])*600 + int(niceTime[1])*60 + (int(niceTime[4]) + int(niceTime[3])*10)
+    else:
+        niceTime = int(niceTime[0])*60 + (int(niceTime[3]) + int(niceTime[2])*10)
+
+    # subtract niceTime - now
+    if niceTime > now:
+        return niceTime-now
+    else:
+        return (niceTime-now) + 1440
+
+
+def sortByRemainingTime(niceSettings_arr):
+    # bubble sort cuz I cant be bothered
+    swaps = 1
+    while swaps != 0:
+        swaps = 0
+        for i in range(1, len(niceSettings_arr)):
+            if timeRemaining(niceSettings_arr[i-1]) > timeRemaining(niceSettings_arr[i]):
+                holdVal = niceSettings_arr[i-1]
+                niceSettings_arr[i-1] = niceSettings_arr[i]
+                niceSettings_arr[i] = holdVal
+                swaps += 1
+
+    return niceSettings_arr
+
+
+def unpickleSettings():
+
+    global niceSettings_fileName
+    global niceSettings_arr
+    niceSettings_fileName = "nice_settings.pickle"
     niceSettings_arr = []
 
+    try:
+        niceSettings_File = open(niceSettings_fileName, 'rb')
+        try:
+            niceSettings_arr = pickle.load(niceSettings_File)
+            niceSettings_arr = sortByRemainingTime(niceSettings_arr)
+        except EOFError:
+            print("file empty")
+        niceSettings_File.close()
+    except FileNotFoundError:
+        print("file not found")
+
+
+unpickleSettings()
 # bot settings
 
 token = "ODA0NDgxNjE3NjgyNjI4NjA4.YBM95A.DS_eH_3I0GnbVIs37u_mEVHlPKs"
 bot = commands.Bot(command_prefix='!')
-print(getUTC())
 
 
 @bot.command()
@@ -290,9 +323,11 @@ async def autonice(ctx, person, timeZone, niceTime):
         niceSettings_File = open(niceSettings_fileName, 'wb')
         pickle.dump(niceSettings_arr, niceSettings_File)  # dumping the whole array is kinda slow however I dont know how to simply append the settings and then read the file line by line
         niceSettings_File.close()
+        unpickleSettings()
 
         embed = makeEmbed(title="Success!", color=int("0x2ecc71", 16))
         await ctx.channel.send(embed=embed)
+
     else:
         embed = makeEmbed(title="ERROR", description="AutoNice setting already exists", color=int("0xe74c3c", 16))
         await ctx.channel.send(embed=embed)
