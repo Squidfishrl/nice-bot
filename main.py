@@ -2,6 +2,9 @@ import discord
 import pickle
 from datetime import datetime, timezone
 from discord.ext import commands
+import asyncio
+import os
+import sys
 
 
 class AutoNice:
@@ -153,13 +156,13 @@ def compareAutoNiceObjects(obj1, obj2):
         sameBool = False
 
     elif obj1.timeZone != obj2.timeZone:
-        return False
+        sameBool = False
 
     elif obj1.niceTime != obj2.niceTime:
-        return False
+        sameBool = False
 
     elif obj1.sender != obj2.sender:
-        return False
+        sameBool = False
 
     return sameBool
 
@@ -260,11 +263,16 @@ def unpickleSettings():
         print("file not found")
 
 
+def restartProgram():
+    python = sys.executable
+    os.execl(python, python, * sys.argv)
+
+
 unpickleSettings()
 # bot settings
-
+intents = discord.Intents().all()
 token = "ODA0NDgxNjE3NjgyNjI4NjA4.YBM95A.DS_eH_3I0GnbVIs37u_mEVHlPKs"
-bot = commands.Bot(command_prefix='!')
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 
 @bot.command()
@@ -282,13 +290,11 @@ async def nice(ctx, person):
 
 
 @bot.command()
-async def autonice(ctx, person, timeZone, niceTime):
+async def autoNice(ctx, person, timeZone, niceTime):
 
     #  user check
     try:
         user = await commands.UserConverter().convert(ctx, person)
-        print(type(person))
-        print(ctx.author.id)
     except commands.errors.UserNotFound:
         embed = makeEmbed(title="Invalid user parameter", description="User not found", color=int("0xe74c3c", 16))
         await ctx.channel.send(embed=embed)
@@ -304,7 +310,7 @@ async def autonice(ctx, person, timeZone, niceTime):
         await ctx.channel.send(embed=embed)
         return
 
-    setting = AutoNice(person, timeZone, niceTime, str(ctx.author.id))
+    setting = AutoNice(str(user.id), timeZone, niceTime, str(ctx.author.id))
     setting = convertToUTC(setting)
 
     #  check if setting already exists
@@ -323,14 +329,16 @@ async def autonice(ctx, person, timeZone, niceTime):
         niceSettings_File = open(niceSettings_fileName, 'wb')
         pickle.dump(niceSettings_arr, niceSettings_File)  # dumping the whole array is kinda slow however I dont know how to simply append the settings and then read the file line by line
         niceSettings_File.close()
-        unpickleSettings()
 
         embed = makeEmbed(title="Success!", color=int("0x2ecc71", 16))
         await ctx.channel.send(embed=embed)
 
+        restartProgram()
+
     else:
         embed = makeEmbed(title="ERROR", description="AutoNice setting already exists", color=int("0xe74c3c", 16))
         await ctx.channel.send(embed=embed)
+
 
 
 @bot.command()
@@ -339,12 +347,13 @@ async def log(ctx):
 
 
 @bot.command()
-async def listNice(ctx):
-    message = "PERSON    TIMEZEONE    TIME    SENDER\n\n"
+async def niceList(ctx):
+    message = "`PERSON    TIMEZEONE    TIME    SENDER\n\n"
     for setting in niceSettings_arr:
         user = await commands.UserConverter().convert(ctx, setting.person)
         sender = await commands.UserConverter().convert(ctx, setting.sender)
         message += str(user)+"    "+setting.timeZone+"    "+setting.niceTime+"    "+str(sender)+"\n"
+    message += '`'
     await ctx.channel.send(message)
 
 
@@ -358,13 +367,56 @@ async def on_message(message):
     await bot.process_commands(message)  # on_message forbids other commands from working. This fixes it
 
 
+@bot.event
+async def on_ready():
+    while True:
+        # see if some niceTimes overlap
+        overLaps = 0
+        for i in range(0, len(niceSettings_arr)):
+            if niceSettings_arr[i].niceTime == niceSettings_arr[0].niceTime:
+                overLaps += 1
+            else:
+                break
 
+        print(timeRemaining(niceSettings_arr[0]) * 60)
+        await asyncio.sleep(timeRemaining(niceSettings_arr[0])*60)
+
+        for i in range(0, overLaps):
+            print("nice")
+            user = bot.get_user(int(niceSettings_arr[i].person))
+            sender = bot.get_user(int(niceSettings_arr[i].sender))
+
+            embed = makeEmbed(title="Nice!", description="sent by " + user.mention, color=discord.Colour.random())
+            await user.send(embed=embed)
+
+            embed = makeEmbed(title="Success", description="sent nice to "+user.mention, color=int("0x2ecc71", 16))
+            await sender.send(embed=embed)
+
+        unpickleSettings()  # for some reason I cant call sortByRemainingTime on niceSettings_arr, even tho niceSettings_arr is global
+
+
+
+# @commands.command
+# async def sendAutoNice(ctx, setting):
+#     remainingSeconds = timeRemaining(setting)*60
+#     await asyncio.sleep(remainingSeconds)
+#     print("nice")
+#     user = await commands.UserConverter().convert(ctx, setting.person)
+#     sender = await commands.UserConverter().convert(ctx, setting.sender)
+#
+#     embed = makeEmbed(title="Nice!", description="sent by " + user.mention, color=discord.Colour.random())
+#     await user.send(embed=embed)
+#
+#     embed = makeEmbed(title="Success!", color=int("0x2ecc71", 16))
+#     await sender.send(embed=embed)
 
 
 bot.run(token)
+# bot.add_command(sendAutoNice)
+# sendAutoNice(niceSettings_arr[0])
 # DONE: save autoNice settings in a File and structure - try pickle
 # DONE: read the settings on startup and store them in a structure
-# TODO: OPTIONAL - sort the data sctructure by time remaining
+# Done: OPTIONAL - sort the data sctructure by time remaining
 # TODO: check every minute if its correct time to send
 # TODO: OPTIONAL - efficent checks, that calculate when its needed to check - requires sorted structure by time remaining
 # TODO: better logging - different files which contain 1 person dms -> example Aspss->bot only
