@@ -1,4 +1,5 @@
 import discord
+import pickle
 from datetime import datetime, timezone
 from discord.ext import commands
 
@@ -144,9 +145,45 @@ def verifyTimeZone(timeZone):
     return timeZoneCheckBool
 
 
+def compareAutoNiceObjects(obj1, obj2):
+
+    sameBool = True
+
+    if obj1.person != obj2.person:
+        sameBool = False
+
+    elif obj1.timeZone != obj2.timeZone:
+        return False
+
+    elif obj1.niceTime != obj2.niceTime:
+        return False
+
+    elif obj1.sender != obj2.sender:
+        return False
+
+    return sameBool
+
+
 def getUtc():
     return datetime.now(timezone.utc)
 
+
+# unpickle autonice settings
+
+niceSettings_fileName = "nice_settings.pickle"
+niceSettings_arr = []
+
+try:
+    niceSettings_File = open(niceSettings_fileName, 'rb')
+    try:
+        niceSettings_arr = pickle.load(niceSettings_File)
+    except EOFError:
+        niceSettings_arr = []
+    niceSettings_File.close()
+except FileNotFoundError:
+    niceSettings_arr = []
+
+# bot settings
 
 token = "ODA0NDgxNjE3NjgyNjI4NjA4.YBM95A.DS_eH_3I0GnbVIs37u_mEVHlPKs"
 bot = commands.Bot(command_prefix='!')
@@ -157,7 +194,7 @@ print(getUtc())
 async def nice(ctx, person):
     try:
         user = await commands.UserConverter().convert(ctx, person)
-        embed = makeEmbed(title="Nice", description="sent by " + user.mention, color=discord.Colour.random())
+        embed = makeEmbed(title="Nice!", description="sent by " + user.mention, color=discord.Colour.random())
         await user.send(embed=embed)
 
         embed = makeEmbed(title="Success!", color=int("0x2ecc71", 16))
@@ -173,6 +210,8 @@ async def autonice(ctx, person, timeZone, niceTime):
     #  user check
     try:
         user = await commands.UserConverter().convert(ctx, person)
+        print(type(person))
+        print(ctx.author.id)
     except commands.errors.UserNotFound:
         embed = makeEmbed(title="Invalid user parameter", description="User not found", color=int("0xe74c3c", 16))
         await ctx.channel.send(embed=embed)
@@ -188,10 +227,30 @@ async def autonice(ctx, person, timeZone, niceTime):
         await ctx.channel.send(embed=embed)
         return
 
-    settings = AutoNice(person, timeZone, niceTime, ctx.author)
+    setting = AutoNice(person, timeZone, niceTime, str(ctx.author.id))
 
-    embed = makeEmbed(title="Success!", color=int("0x2ecc71", 16))
-    await ctx.channel.send(embed=embed)
+    #  check if setting already exists
+
+    alreadyExistsBool = False
+    for niceSetting in niceSettings_arr:
+        if compareAutoNiceObjects(setting, niceSetting):
+            alreadyExistsBool = True
+            break
+
+    # pickle setting
+
+    if alreadyExistsBool is False:
+
+        niceSettings_arr.append(setting)
+        niceSettings_File = open(niceSettings_fileName, 'wb')
+        pickle.dump(niceSettings_arr, niceSettings_File)  # dumping the whole array is kinda slow however I dont know how to simply append the settings and then read the file line by line
+        niceSettings_File.close()
+
+        embed = makeEmbed(title="Success!", color=int("0x2ecc71", 16))
+        await ctx.channel.send(embed=embed)
+    else:
+        embed = makeEmbed(title="ERROR", description="AutoNice setting already exists", color=int("0xe74c3c", 16))
+        await ctx.channel.send(embed=embed)
 
 
 @bot.command()
@@ -207,6 +266,9 @@ async def on_message(message):
         file.close()
 
     await bot.process_commands(message)  # on_message forbids other commands from working. This fixes it
+
+
+
 
 
 bot.run(token)
