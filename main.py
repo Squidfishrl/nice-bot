@@ -164,8 +164,52 @@ def compareAutoNiceObjects(obj1, obj2):
     return sameBool
 
 
-def getUtc():
+def getUTC():
     return datetime.now(timezone.utc)
+
+
+def convertToUTC(autoNiceSetting):
+
+    # get deviation
+    if len(autoNiceSetting.timeZone) == 5:
+        timeZoneDeviation = autoNiceSetting.timeZone[4]
+    else:
+        timeZoneDeviation = autoNiceSetting.timeZone[4] + autoNiceSetting.timeZone[5]
+
+    # get niceTime Hour
+
+    # niceTimeHour = ''
+    # for i in autoNiceSetting.niceTime:
+    #     if i == ':':
+    #         break
+    #     else:
+    #         niceTimeHour += i
+    # niceTimeHour = int(niceTimeHour)
+
+    # sync niceTime to UTC
+    format = '%H:%M'
+    if autoNiceSetting.timeZone[3] == '+':
+        # niceTime - timeZoneDeviation
+        autoNiceSetting.niceTime = str(datetime.strptime(autoNiceSetting.niceTime, format) - datetime.strptime(timeZoneDeviation, '%H'))
+
+        # format time
+        if len(autoNiceSetting.niceTime) > 8:  # it looks something like this -1 day, 13:05:00
+            autoNiceSetting.niceTime = autoNiceSetting.niceTime.replace("-1 day, ", '')
+
+    else:
+        # niceTime + timeZoneDeviation
+        t1 = datetime.strptime(autoNiceSetting.niceTime, format)
+        t2 = datetime.strptime(timeZoneDeviation, '%H')
+        time_zero = datetime.strptime('00:00', '%H:%M')
+        autoNiceSetting.niceTime = (t1 - time_zero + t2).time()
+
+
+    # format time to %H:%M
+    autoNiceSetting.niceTime = str(autoNiceSetting.niceTime[:-3])
+    autoNiceSetting.timeZone = 'UTC'
+    print(str(autoNiceSetting.niceTime))
+    print(type(autoNiceSetting.niceTime))
+    return autoNiceSetting
 
 
 # unpickle autonice settings
@@ -187,7 +231,7 @@ except FileNotFoundError:
 
 token = "ODA0NDgxNjE3NjgyNjI4NjA4.YBM95A.DS_eH_3I0GnbVIs37u_mEVHlPKs"
 bot = commands.Bot(command_prefix='!')
-print(getUtc())
+print(getUTC())
 
 
 @bot.command()
@@ -228,6 +272,7 @@ async def autonice(ctx, person, timeZone, niceTime):
         return
 
     setting = AutoNice(person, timeZone, niceTime, str(ctx.author.id))
+    setting = convertToUTC(setting)
 
     #  check if setting already exists
 
@@ -258,6 +303,16 @@ async def log(ctx):
     await ctx.channel.send(file=discord.File('replyLog.txt'))
 
 
+@bot.command()
+async def listNice(ctx):
+    message = "PERSON    TIMEZEONE    TIME    SENDER\n\n"
+    for setting in niceSettings_arr:
+        user = await commands.UserConverter().convert(ctx, setting.person)
+        sender = await commands.UserConverter().convert(ctx, setting.sender)
+        message += str(user)+"    "+setting.timeZone+"    "+setting.niceTime+"    "+str(sender)+"\n"
+    await ctx.channel.send(message)
+
+
 @bot.event
 async def on_message(message):
     if bot.user != message.author and isinstance(message.channel, discord.channel.DMChannel):
@@ -272,8 +327,8 @@ async def on_message(message):
 
 
 bot.run(token)
-# TODO: save autoNice settings in a File and structure - try pickle
-# TODO: read the settings on startup and store them in a structure
+# DONE: save autoNice settings in a File and structure - try pickle
+# DONE: read the settings on startup and store them in a structure
 # TODO: OPTIONAL - sort the data sctructure by time remaining
 # TODO: check every minute if its correct time to send
 # TODO: OPTIONAL - efficent checks, that calculate when its needed to check - requires sorted structure by time remaining
