@@ -359,14 +359,33 @@ async def log(ctx):
 
 @bot.command()
 async def niceList(ctx):
-    message = "`PERSON    TIMEZEONE    TIME    SENDER\n\n"
-    for setting in niceSettings_arr:
+    message = "`RM_ID    PERSON    TIMEZEONE    TIME    SENDER\n\n"
+    for i, setting in enumerate(niceSettings_arr):
         user = await commands.UserConverter().convert(ctx, setting.person)
         sender = await commands.UserConverter().convert(ctx, setting.sender)
-        message += str(user)+"    "+setting.timeZone+"    "+setting.niceTime+"    "+str(sender)+"\n"
+        message += str(i) + "    "+str(user)+"    "+setting.timeZone+"    "+setting.niceTime+"    "+str(sender)+"\n"
     message += '`'
     await ctx.channel.send(message)
     logging.info("niceList successfully shown")
+
+
+@bot.command()
+async def rm(ctx, arrIndex):
+    try:
+        arrIndex = int(arrIndex)
+        niceSettings_arr.pop(arrIndex)
+        niceSettings_File = open(niceSettings_fileName, 'wb')
+        pickle.dump(niceSettings_arr, niceSettings_File)
+        niceSettings_File.close()
+        logging.info("removed nice setting")
+        embed = makeEmbed(title="Success!", color=int("0x2ecc71", 16))
+        await ctx.channel.send(embed=embed)
+        restartProgram()
+    except ValueError:
+        logging.error("inappropriate use of rm command")
+        embed = makeEmbed(title="ERROR", description="arrIndex parameter must be an index", color=int("0xe74c3c", 16))
+        await ctx.channel.send(embed=embed)
+
 
 
 @bot.event
@@ -385,7 +404,8 @@ async def on_ready():
         while True:
             # see if some niceTimes overlap
             overLaps = 0
-            for i in range(0, len(niceSettings_arr)):
+            print(len(niceSettings_arr))
+            for i in range(1, len(niceSettings_arr)):
                 if niceSettings_arr[i].niceTime == niceSettings_arr[0].niceTime:
                     overLaps += 1
                 else:
