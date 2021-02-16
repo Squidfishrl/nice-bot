@@ -400,6 +400,8 @@ async def on_message(message):
 
 @bot.event
 async def on_ready():
+
+    
     try:
         while True:
             # see if some niceTimes overlap
@@ -414,7 +416,7 @@ async def on_ready():
             print(timeRemaining(niceSettings_arr[0]) * 60)
             await asyncio.sleep(timeRemaining(niceSettings_arr[0])*60)
 
-            for i in range(0, overLaps):
+            for i in range(0, overLaps+1):
                 print("nice")
                 user = bot.get_user(int(niceSettings_arr[i].person))
                 sender = bot.get_user(int(niceSettings_arr[i].sender))
