@@ -275,7 +275,7 @@ logFileName = 'bot.log'
 logging.basicConfig(filename=logFileName, encoding='utf-8', level=logging.INFO)
 # bot settings
 intents = discord.Intents().all()
-token = "ODA0NDgxNjE3NjgyNjI4NjA4.YBM95A.DS_eH_3I0GnbVIs37u_mEVHlPKs"
+token = "<insert token here                print(time[2]+" should be a number from 0-5")>"
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 
